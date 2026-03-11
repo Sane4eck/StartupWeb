@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StartUp Web</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <div>
+        <h1>StartUp Web</h1>
+        <div class="muted">FastAPI + WebSocket + current controller logic</div>
+      </div>
+      <div class="badges">
+        <span class="badge" id="ws-badge">WS: offline</span>
+        <span class="badge" id="stage-badge">stage: idle</span>
+      </div>
+    </header>
+
+    <section class="grid cols-3">
+      <div class="card">
+        <h2>Connections</h2>
+        <div class="row gap-sm">
+          <button id="refresh-ports">Refresh ports</button>
+        </div>
+
+        <div class="device-block">
+          <h3>Pump</h3>
+          <div class="row">
+            <select id="pump-port"></select>
+            <button data-action="pump-connect">Connect</button>
+            <button data-action="pump-disconnect" class="danger">Disconnect</button>
+          </div>
+        </div>
+
+        <div class="device-block">
+          <h3>Starter</h3>
+          <div class="row">
+            <select id="starter-port"></select>
+            <button data-action="starter-connect">Connect</button>
+            <button data-action="starter-disconnect" class="danger">Disconnect</button>
+          </div>
+        </div>
+
+        <div class="device-block">
+          <h3>PSU / Valve</h3>
+          <div class="row">
+            <select id="psu-port"></select>
+            <button data-action="psu-connect">Connect</button>
+            <button data-action="psu-disconnect" class="danger">Disconnect</button>
+          </div>
+        </div>
+
+        <div class="device-block">
+          <h3>Pole pairs</h3>
+          <div class="row">
+            <label>Pump <input id="pp-pump" type="number" value="7"></label>
+            <label>Starter <input id="pp-starter" type="number" value="3"></label>
+            <button id="save-pp">Save</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Cycle / Session</h2>
+        <div class="stack">
+          <label>Log prefix <input id="ready-prefix" value="session"></label>
+          <div class="row wrap">
+            <button id="cmd-ready">Ready</button>
+            <button id="cmd-update-reset">Update reset</button>
+            <button id="cmd-run-cycle">Run cycle</button>
+            <label>Cooling duty <input id="cooling-duty" type="number" step="0.01" value="0.10"></label>
+            <button id="cmd-cooling">Cooling</button>
+            <button id="cmd-stop-all" class="danger">Stop all</button>
+          </div>
+          <div class="row wrap">
+            <button id="cmd-valve-on">Valve ON</button>
+            <button id="cmd-valve-off">Valve OFF</button>
+          </div>
+          <label>Pump profile path <input id="pump-profile-path" placeholder="Z:\\projects\\Startup\\file_cyclogram\\_Cyclogram_Pump_test.xlsx"></label>
+          <div class="row wrap">
+            <button id="cmd-pump-profile-start">Start pump profile</button>
+            <button id="cmd-pump-profile-stop">Stop pump profile</button>
+          </div>
+          <div class="kvlist">
+            <div><span>Log path</span><code id="log-path">-</code></div>
+            <div><span>Pump profile</span><code id="pump-profile-status">-</code></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>PSU Manual</h2>
+        <div class="stack">
+          <div class="row">
+            <label>Voltage <input id="psu-v" type="number" step="0.1" value="0"></label>
+            <label>Current <input id="psu-i" type="number" step="0.1" value="0"></label>
+          </div>
+          <div class="row wrap">
+            <button id="cmd-psu-vi">Set V/I</button>
+            <button id="cmd-psu-on">Output ON</button>
+            <button id="cmd-psu-off" class="danger">Output OFF</button>
+          </div>
+          <table class="mini-table">
+            <tbody>
+              <tr><th>V set</th><td id="psu-v-set">-</td></tr>
+              <tr><th>I set</th><td id="psu-i-set">-</td></tr>
+              <tr><th>V out</th><td id="psu-v-out">-</td></tr>
+              <tr><th>I out</th><td id="psu-i-out">-</td></tr>
+              <tr><th>P out</th><td id="psu-p-out">-</td></tr>
+              <tr><th>Output</th><td id="psu-output">-</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid cols-2">
+      <div class="card">
+        <h2>Pump</h2>
+        <div class="row wrap controls-line">
+          <label>RPM <input id="pump-rpm" type="number" step="1" value="0"></label>
+          <button id="cmd-pump-rpm">Set RPM</button>
+          <label>Duty <input id="pump-duty" type="number" step="0.01" value="0"></label>
+          <button id="cmd-pump-duty">Set Duty</button>
+        </div>
+        <table class="mini-table">
+          <tbody>
+            <tr><th>Connected</th><td id="pump-connected">-</td></tr>
+            <tr><th>RPM mech</th><td id="pump-rpm-mech">-</td></tr>
+            <tr><th>Duty</th><td id="pump-duty-now">-</td></tr>
+            <tr><th>Current motor</th><td id="pump-current">-</td></tr>
+            <tr><th>Cmd mode</th><td id="pump-cmd-mode">-</td></tr>
+            <tr><th>Cmd value</th><td id="pump-cmd-value">-</td></tr>
+            <tr><th>Cmd rpm</th><td id="pump-cmd-rpm">-</td></tr>
+            <tr><th>Cmd duty</th><td id="pump-cmd-duty">-</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2>Starter</h2>
+        <div class="row wrap controls-line">
+          <label>RPM <input id="starter-rpm" type="number" step="1" value="0"></label>
+          <button id="cmd-starter-rpm">Set RPM</button>
+          <label>Duty <input id="starter-duty" type="number" step="0.01" value="0"></label>
+          <button id="cmd-starter-duty">Set Duty</button>
+        </div>
+        <table class="mini-table">
+          <tbody>
+            <tr><th>Connected</th><td id="starter-connected">-</td></tr>
+            <tr><th>RPM mech</th><td id="starter-rpm-mech">-</td></tr>
+            <tr><th>Duty</th><td id="starter-duty-now">-</td></tr>
+            <tr><th>Current motor</th><td id="starter-current">-</td></tr>
+            <tr><th>Cmd mode</th><td id="starter-cmd-mode">-</td></tr>
+            <tr><th>Cmd value</th><td id="starter-cmd-value">-</td></tr>
+            <tr><th>Cmd rpm</th><td id="starter-cmd-rpm">-</td></tr>
+            <tr><th>Cmd duty</th><td id="starter-cmd-duty">-</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="grid cols-2">
+      <div class="card">
+        <h2>Status / Errors</h2>
+        <pre id="status-box" class="logbox"></pre>
+      </div>
+      <div class="card">
+        <h2>Telemetry</h2>
+        <pre id="telemetry-box" class="logbox"></pre>
+      </div>
+    </section>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
