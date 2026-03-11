@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import math
 import os
 import threading
@@ -77,6 +78,9 @@ class WebControllerRuntime:
         self._started = False
         self._in_tick = False
 
+        self._loop = None
+        self._subscribers = set()
+
         self._t0 = time.monotonic()
         self.stage = "idle"
 
@@ -143,6 +147,45 @@ class WebControllerRuntime:
     def list_ports() -> list[str]:
         return [p.device for p in serial.tools.list_ports.comports()]
 
+    def set_loop(self, loop):
+        self._loop = loop
+
+    async def subscribe(self):
+        q = asyncio.Queue(maxsize=100)
+        self._subscribers.add(q)
+        return q
+
+    async def unsubscribe(self, q):
+        self._subscribers.discard(q)
+
+    async def _publish_async(self, event, payload):
+        dead = []
+
+        for q in list(self._subscribers):
+            try:
+                if q.full():
+                    try:
+                        q.get_nowait()
+                    except Exception:
+                        pass
+                q.put_nowait({"event": event, "payload": payload})
+            except Exception:
+                dead.append(q)
+
+        for q in dead:
+            self._subscribers.discard(q)
+
+    def publish(self, event, payload):
+        if self._loop is None:
+            return
+
+        try:
+            asyncio.run_coroutine_threadsafe(
+                self._publish_async(event, payload),
+                self._loop,
+            )
+        except Exception:
+            pass
     def start(self) -> None:
         with self._lock:
             if self._started:
