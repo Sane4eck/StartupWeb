@@ -71,7 +71,7 @@ def _cmd_snapshot(target: Dict[str, Any], pole_pairs: int) -> Dict[str, Any]:
 class WebControllerRuntime:
     def __init__(self, dt: float = 0.05, publish: Optional[Callable[[str, Any], None]] = None):
         self.dt = float(dt)
-        self.publish = publish or (lambda _event, _payload: None)
+        self._external_publish = publish or (lambda _event, _payload: None)
         self._lock = threading.RLock()
         self._thread: Optional[threading.Thread] = None
         self._stop_evt = threading.Event()
@@ -168,7 +168,7 @@ class WebControllerRuntime:
                         q.get_nowait()
                     except Exception:
                         pass
-                q.put_nowait({"event": event, "payload": payload})
+                q.put_nowait({"kind": event, "payload": payload})
             except Exception:
                 dead.append(q)
 
@@ -176,12 +176,19 @@ class WebControllerRuntime:
             self._subscribers.discard(q)
 
     def publish(self, event, payload):
+        safe = _json_safe(payload)
+
+        try:
+            self._external_publish(event, safe)
+        except Exception:
+            pass
+
         if self._loop is None:
             return
 
         try:
             asyncio.run_coroutine_threadsafe(
-                self._publish_async(event, payload),
+                self._publish_async(event, safe),
                 self._loop,
             )
         except Exception:
@@ -231,6 +238,9 @@ class WebControllerRuntime:
                 "last_log": self._last_log,
                 "ports": self.list_ports(),
             })
+
+    def get_state(self) -> Dict[str, Any]:
+        return self.snapshot()
 
     def _push(self, event: str, payload: Any) -> None:
         safe = _json_safe(payload)
