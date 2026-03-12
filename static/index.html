@@ -25,13 +25,6 @@
       <div class="toolbar">
         <button id="btn-ready">Ready</button>
         <button id="btn-run">Run</button>
-        <button id="btn-cooling">Cooling</button>
-
-        <label class="inline-label">
-          <span>Cooling duty:</span>
-          <input id="in-cool-duty" type="number" step="0.01" value="0.05" />
-        </label>
-
         <button id="btn-update">Update</button>
         <button id="btn-stop-all" class="danger">Stop All</button>
 
@@ -87,12 +80,13 @@
           <button id="btn-pump-stop">Stop</button>
         </div>
 
-        <div class="group-row">
+        <div class="group-row profile-row">
           <label class="inline-label grow">
             <span>Pump profile XLSX:</span>
             <input id="in-pump-profile-path" type="text" placeholder="file_cyclogram/_Cyclogram_Pump_test.xlsx" />
           </label>
 
+          <button id="btn-pump-profile-browse">Browse...</button>
           <button id="btn-pump-profile-start">Start profile</button>
           <button id="btn-pump-profile-stop">Stop profile</button>
         </div>
@@ -141,7 +135,7 @@
         </div>
       </div>
 
-      <div class="group-box">
+      <div class="group-box no-bottom-margin">
         <div class="group-title">PSU (RD6024)</div>
 
         <div class="group-row">
