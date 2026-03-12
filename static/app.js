@@ -164,13 +164,33 @@ function pushPlot(sample) {
   drawStarterChart();
 }
 
+function seriesMax(values, fallback, base) {
+  const clean = values.filter((v) => v !== null && Number.isFinite(v));
+  const raw = clean.length ? Math.max(...clean) : fallback;
+  if (!Number.isFinite(raw) || raw <= 0) return fallback;
+  return Math.ceil(raw / base) * base;
+}
+
+function drawAxisTicks(ctx, x, yTop, yBottom, maxValue, color, align = "left") {
+  ctx.fillStyle = color;
+  ctx.font = "12px Segoe UI, Arial";
+  ctx.textAlign = align;
+
+  for (let i = 0; i <= 5; i += 1) {
+    const yVal = (maxValue * (5 - i)) / 5;
+    const y = yTop + ((yBottom - yTop) * i) / 5;
+    const text = maxValue <= 1 ? yVal.toFixed(2) : yVal.toFixed(0);
+    ctx.fillText(text, x, y + 4);
+  }
+}
+
 function drawStarterChart() {
   const canvas = $("starter-chart");
   if (!canvas) return;
 
   const rect = canvas.getBoundingClientRect();
   const width = Math.max(500, Math.floor(rect.width));
-  const height = Math.max(260, Math.floor(rect.height));
+  const height = Math.max(220, Math.floor(rect.height));
   const dpr = window.devicePixelRatio || 1;
 
   canvas.width = Math.floor(width * dpr);
@@ -180,7 +200,7 @@ function drawStarterChart() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, width, height);
 
-  const pad = { left: 60, right: 95, top: 18, bottom: 36 };
+  const pad = { left: 60, right: 130, top: 18, bottom: 36 };
   const plotW = width - pad.left - pad.right;
   const plotH = height - pad.top - pad.bottom;
 
@@ -218,17 +238,14 @@ function drawStarterChart() {
     tMin = Math.max(0, tMax - state.plot.maxSeconds);
   }
 
-  const rpmVals = rpm.filter((v) => v !== null);
-  const dutyVals = duty.filter((v) => v !== null);
-  const curVals = cur.filter((v) => v !== null);
-
-  const rpmMax = niceMax(rpmVals.length ? Math.max(...rpmVals) : 1000, 1000);
-  const dutyMax = niceMax(dutyVals.length ? Math.max(...dutyVals) : 0.1, 0.1);
-  const curMax = niceMax(curVals.length ? Math.max(...curVals) : 10, 10);
+  const rpmMax = seriesMax(rpm, 1000, 1000);
+  const dutyMax = seriesMax(duty, 0.1, 0.1);
+  const curMax = seriesMax(cur, 10, 10);
 
   const mapX = (x) => pad.left + ((x - tMin) / Math.max(1e-9, tMax - tMin)) * plotW;
   const mapLeftY = (y) => pad.top + (1 - y / Math.max(1e-9, rpmMax)) * plotH;
-  const mapRightY = (y, maxY) => pad.top + (1 - y / Math.max(1e-9, maxY)) * plotH;
+  const mapDutyY = (y) => pad.top + (1 - y / Math.max(1e-9, dutyMax)) * plotH;
+  const mapCurY = (y) => pad.top + (1 - y / Math.max(1e-9, curMax)) * plotH;
 
   ctx.strokeStyle = "#000000";
   ctx.lineWidth = 2;
@@ -237,13 +254,13 @@ function drawStarterChart() {
   ctx.strokeStyle = "#008000";
   ctx.lineWidth = 2;
   ctx.setLineDash([8, 6]);
-  drawSeries(ctx, t, duty, mapX, (y) => mapRightY(y, dutyMax), tMin);
+  drawSeries(ctx, t, duty, mapX, mapDutyY, tMin);
   ctx.setLineDash([]);
 
   ctx.strokeStyle = "#c00000";
   ctx.lineWidth = 2;
   ctx.setLineDash([3, 6]);
-  drawSeries(ctx, t, cur, mapX, (y) => mapRightY(y, curMax), tMin);
+  drawSeries(ctx, t, cur, mapX, mapCurY, tMin);
   ctx.setLineDash([]);
 
   ctx.strokeStyle = "#333333";
@@ -254,8 +271,24 @@ function drawStarterChart() {
   ctx.lineTo(pad.left + plotW, pad.top + plotH);
   ctx.stroke();
 
+  const dutyAxisX = pad.left + plotW + 8;
+  const curAxisX = pad.left + plotW + 62;
+
+  ctx.beginPath();
+  ctx.moveTo(dutyAxisX, pad.top);
+  ctx.lineTo(dutyAxisX, pad.top + plotH);
+  ctx.strokeStyle = "#008000";
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(curAxisX, pad.top);
+  ctx.lineTo(curAxisX, pad.top + plotH);
+  ctx.strokeStyle = "#c00000";
+  ctx.stroke();
+
   ctx.fillStyle = "#222";
   ctx.font = "12px Segoe UI, Arial";
+  ctx.textAlign = "left";
 
   for (let i = 0; i <= 5; i += 1) {
     const yVal = (rpmMax * (5 - i)) / 5;
@@ -269,14 +302,18 @@ function drawStarterChart() {
     ctx.fillText(xVal.toFixed(0), x - 6, height - 12);
   }
 
+  drawAxisTicks(ctx, dutyAxisX + 6, pad.top, pad.top + plotH, dutyMax, "#008000", "left");
+  drawAxisTicks(ctx, curAxisX + 6, pad.top, pad.top + plotH, curMax, "#c00000", "left");
+
+  ctx.fillStyle = "#222";
+  ctx.textAlign = "left";
   ctx.fillText("RPM", 14, 14);
   ctx.fillText("t (s)", pad.left + plotW / 2 - 10, height - 8);
 
   ctx.fillStyle = "#008000";
-  ctx.fillText(`Duty max: ${dutyMax.toFixed(2)}`, width - 90, 28);
-
+  ctx.fillText("Duty", dutyAxisX - 2, 14);
   ctx.fillStyle = "#c00000";
-  ctx.fillText(`I max: ${curMax.toFixed(1)} A`, width - 90, 46);
+  ctx.fillText("Current", curAxisX - 8, 14);
 
   drawLegend(ctx, pad.left + 10, 16);
 }
@@ -321,14 +358,10 @@ function drawLegend(ctx, x, y) {
 
     ctx.fillStyle = "#222";
     ctx.font = "12px Segoe UI, Arial";
+    ctx.textAlign = "left";
     ctx.fillText(text, x + offset + 30, y + 4);
-    offset += 110;
+    offset += 112;
   }
-}
-
-function niceMax(value, base) {
-  if (!Number.isFinite(value) || value <= 0) return base;
-  return Math.ceil(value / base) * base;
 }
 
 function updateStatus(status) {
@@ -437,11 +470,30 @@ function connectWs() {
 }
 
 function bindEnter(inputId, buttonId) {
-  $(inputId).addEventListener("keydown", (e) => {
+  const input = $(inputId);
+  if (!input) return;
+  input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       $(buttonId).click();
     }
   });
+}
+
+async function choosePumpProfile() {
+  if (!(window.pywebview && window.pywebview.api && window.pywebview.api.choose_xlsx)) {
+    setError("File dialog is available only in desktop_webview.py");
+    return;
+  }
+
+  try {
+    const path = await window.pywebview.api.choose_xlsx();
+    if (path) {
+      $("in-pump-profile-path").value = path;
+      setError("");
+    }
+  } catch (e) {
+    setError(e.message || String(e));
+  }
 }
 
 function savePolePairs() {
@@ -473,17 +525,7 @@ function bind() {
   $("btn-run").onclick = async () => {
     try {
       await api("/api/run-cycle");
-      setActive(["btn-run", "btn-cooling"], "btn-run");
-      setError("");
-    } catch (e) {
-      setError(e.message || String(e));
-    }
-  };
-
-  $("btn-cooling").onclick = async () => {
-    try {
-      await api("/api/cooling-cycle", "POST", { value: Number($("in-cool-duty").value) });
-      setActive(["btn-run", "btn-cooling"], "btn-cooling");
+      setActive(["btn-run"], "btn-run");
       setError("");
     } catch (e) {
       setError(e.message || String(e));
@@ -493,7 +535,7 @@ function bind() {
   $("btn-stop-all").onclick = async () => {
     try {
       await api("/api/stop-all");
-      setActive(["btn-run", "btn-cooling"], null);
+      setActive(["btn-run"], null);
       setActive(["btn-pump-set-duty", "btn-pump-set-rpm", "btn-pump-stop"], "btn-pump-stop");
       setActive(["btn-starter-set-duty", "btn-starter-set-rpm", "btn-starter-stop"], "btn-starter-stop");
       setError("");
@@ -618,6 +660,8 @@ function bind() {
     }
   };
 
+  $("btn-pump-profile-browse").onclick = choosePumpProfile;
+
   $("btn-pump-profile-start").onclick = async () => {
     try {
       await api("/api/pump-profile/start", "POST", { path: $("in-pump-profile-path").value.trim() });
@@ -691,7 +735,6 @@ function bind() {
     }
   };
 
-  bindEnter("in-cool-duty", "btn-cooling");
   bindEnter("in-pump-duty", "btn-pump-set-duty");
   bindEnter("in-pump-rpm", "btn-pump-set-rpm");
   bindEnter("in-starter-duty", "btn-starter-set-duty");
