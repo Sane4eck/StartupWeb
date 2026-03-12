@@ -171,6 +171,44 @@ function seriesMax(values, fallback, base) {
   return Math.ceil(raw / base) * base;
 }
 
+function seriesMax(values, fallback, base) {
+  const clean = values.filter((v) => v !== null && Number.isFinite(v));
+  const raw = clean.length ? Math.max(...clean) : fallback;
+  if (!Number.isFinite(raw) || raw <= 0) return fallback;
+  return Math.ceil(raw / base) * base;
+}
+
+function seriesRange(values, fallbackMin, fallbackMax, base) {
+  const clean = values.filter((v) => v !== null && Number.isFinite(v));
+
+  if (!clean.length) {
+    return { min: fallbackMin, max: fallbackMax };
+  }
+
+  let min = Math.min(...clean);
+  let max = Math.max(...clean);
+
+  if (min === max) {
+    const pad = Math.max(Math.abs(min) * 0.2, base);
+    min -= pad;
+    max += pad;
+  } else {
+    const pad = Math.max((max - min) * 0.1, base * 0.25);
+    min -= pad;
+    max += pad;
+  }
+
+  min = Math.floor(min / base) * base;
+  max = Math.ceil(max / base) * base;
+
+  if (min === max) {
+    min -= base;
+    max += base;
+  }
+
+  return { min, max };
+}
+
 function drawAxisTicks(ctx, x, yTop, yBottom, maxValue, color, align = "left") {
   ctx.fillStyle = color;
   ctx.font = "12px Segoe UI, Arial";
@@ -181,6 +219,19 @@ function drawAxisTicks(ctx, x, yTop, yBottom, maxValue, color, align = "left") {
     const y = yTop + ((yBottom - yTop) * i) / 5;
     const text = maxValue <= 1 ? yVal.toFixed(2) : yVal.toFixed(0);
     ctx.fillText(text, x, y + 4);
+  }
+}
+
+function drawAxisTicksRange(ctx, x, yTop, yBottom, minValue, maxValue, color, decimals = 1) {
+  ctx.fillStyle = color;
+  ctx.font = "12px Segoe UI, Arial";
+  ctx.textAlign = "left";
+
+  for (let i = 0; i <= 5; i += 1) {
+    const ratio = i / 5;
+    const y = yTop + (yBottom - yTop) * ratio;
+    const value = maxValue - (maxValue - minValue) * ratio;
+    ctx.fillText(value.toFixed(decimals), x, y + 4);
   }
 }
 
@@ -233,19 +284,31 @@ function drawStarterChart() {
 
   let tMin = 0;
   let tMax = state.plot.maxSeconds;
+
   if (t.length) {
     tMax = Math.max(state.plot.maxSeconds, t[t.length - 1]);
     tMin = Math.max(0, tMax - state.plot.maxSeconds);
   }
 
-  const rpmMax = seriesMax(rpm, 1000, 1000);
-  const dutyMax = seriesMax(duty, 0.1, 0.1);
-  const curMax = seriesMax(cur, 10, 10);
+  const rpmVals = rpm.filter((v) => v !== null);
+  const dutyVals = duty.filter((v) => v !== null);
+  const curVals = cur.filter((v) => v !== null);
 
-  const mapX = (x) => pad.left + ((x - tMin) / Math.max(1e-9, tMax - tMin)) * plotW;
-  const mapLeftY = (y) => pad.top + (1 - y / Math.max(1e-9, rpmMax)) * plotH;
-  const mapDutyY = (y) => pad.top + (1 - y / Math.max(1e-9, dutyMax)) * plotH;
-  const mapCurY = (y) => pad.top + (1 - y / Math.max(1e-9, curMax)) * plotH;
+  const rpmMax = seriesMax(rpmVals, 1000, 1000);
+  const dutyMax = seriesMax(dutyVals, 0.1, 0.1);
+  const curRange = seriesRange(curVals, -10, 10, 5);
+
+  const mapX = (x) =>
+    pad.left + ((x - tMin) / Math.max(1e-9, tMax - tMin)) * plotW;
+
+  const mapLeftY = (y) =>
+    pad.top + (1 - y / Math.max(1e-9, rpmMax)) * plotH;
+
+  const mapDutyY = (y) =>
+    pad.top + (1 - y / Math.max(1e-9, dutyMax)) * plotH;
+
+  const mapCurY = (y) =>
+    pad.top + (1 - (y - curRange.min) / Math.max(1e-9, curRange.max - curRange.min)) * plotH;
 
   ctx.strokeStyle = "#000000";
   ctx.lineWidth = 2;
@@ -286,6 +349,19 @@ function drawStarterChart() {
   ctx.strokeStyle = "#c00000";
   ctx.stroke();
 
+  if (curRange.min < 0 && curRange.max > 0) {
+    const yZero = mapCurY(0);
+    ctx.save();
+    ctx.strokeStyle = "rgba(192, 0, 0, 0.35)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(pad.left, yZero);
+    ctx.lineTo(pad.left + plotW, yZero);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   ctx.fillStyle = "#222";
   ctx.font = "12px Segoe UI, Arial";
   ctx.textAlign = "left";
@@ -303,7 +379,7 @@ function drawStarterChart() {
   }
 
   drawAxisTicks(ctx, dutyAxisX + 6, pad.top, pad.top + plotH, dutyMax, "#008000", "left");
-  drawAxisTicks(ctx, curAxisX + 6, pad.top, pad.top + plotH, curMax, "#c00000", "left");
+  drawAxisTicksRange(ctx, curAxisX + 6, pad.top, pad.top + plotH, curRange.min, curRange.max, "#c00000", 1);
 
   ctx.fillStyle = "#222";
   ctx.textAlign = "left";
@@ -312,6 +388,7 @@ function drawStarterChart() {
 
   ctx.fillStyle = "#008000";
   ctx.fillText("Duty", dutyAxisX - 2, 14);
+
   ctx.fillStyle = "#c00000";
   ctx.fillText("Current", curAxisX - 8, 14);
 
@@ -364,6 +441,45 @@ function drawLegend(ctx, x, y) {
   }
 }
 
+function normalizeStage(stage) {
+  const s = String(stage ?? "").trim();
+
+  const map = {
+    "idle": "idle",
+    "Idle": "idle",
+
+    "ready": "ready",
+    "Ready": "ready",
+
+    "starter": "starter",
+    "Starter": "starter",
+
+    "fuelramp": "fuelramp",
+    "FuelRamp": "fuelramp",
+
+    "running": "running",
+    "Running": "running",
+
+    "fault": "fault",
+    "Fault": "fault",
+
+    "manual": "manual",
+    "Manual": "manual",
+
+    "cooling": "cooling",
+    "Cooling": "cooling",
+
+    "stop": "stop",
+    "Stop": "stop",
+
+    "PumpProfile": "pumpprofile",
+    "pump_profile": "pumpprofile",
+    "pumpprofile": "pumpprofile",
+  };
+
+  return map[s] || (s ? s.toLowerCase() : "-");
+}
+
 function updateStatus(status) {
   if (!status) return;
 
@@ -373,9 +489,9 @@ function updateStatus(status) {
     resetPlot();
   }
 
-  if (status.stage !== undefined) {
-    $("lbl-stage").textContent = `stage: ${status.stage ?? "-"}`;
-  }
+   if (status.stage !== undefined) {
+     $("lbl-stage").textContent = `stage: ${normalizeStage(status.stage)}`;
+   }
 
   if (status.log_path) {
     $("lbl-log").textContent = `log: ${status.log_path}`;
@@ -405,6 +521,10 @@ function updateStatus(status) {
 function updateSample(sample) {
   if (!sample) return;
   state.sample = sample;
+
+  if (sample.stage !== undefined) {
+  $("lbl-stage").textContent = `stage: ${normalizeStage(sample.stage)}`;
+    }
 
   const pump = sample.pump || {};
   const starter = sample.starter || {};
@@ -513,14 +633,26 @@ function bind() {
     }
   };
 
-  $("btn-update").onclick = async () => {
-    try {
-      await api("/api/update-reset");
+$("btn-update").onclick = async () => {
+  try {
+    await api("/api/update-reset");
+
+    const snap = await fetch("/api/state").then((r) => r.json());
+
+    resetPlot();
+    fillPorts(parsePorts({ ports: snap.ports || [] }));
+    updateStatus({ ...(snap.status || {}), reset_plot: true });
+    updateSample(snap.sample || {});
+
+    if (snap.last_error) {
+      setError(String(snap.last_error));
+    } else {
       setError("");
-    } catch (e) {
-      setError(e.message || String(e));
     }
-  };
+  } catch (e) {
+    setError(e.message || String(e));
+  }
+};
 
   $("btn-run").onclick = async () => {
     try {
@@ -666,17 +798,6 @@ function bind() {
     try {
       await api("/api/pump-profile/start", "POST", { path: $("in-pump-profile-path").value.trim() });
       setActive(["btn-pump-profile-start"], "btn-pump-profile-start");
-      setError("");
-    } catch (e) {
-      setError(e.message || String(e));
-    }
-  };
-
-  $("btn-pump-profile-stop").onclick = async () => {
-    try {
-      await api("/api/pump-profile/stop");
-      $("btn-pump-profile-start").disabled = false;
-      setActive(["btn-pump-profile-start"], null);
       setError("");
     } catch (e) {
       setError(e.message || String(e));
