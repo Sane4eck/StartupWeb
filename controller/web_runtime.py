@@ -22,7 +22,8 @@ from scheme.startup import StartupConfig
 from scheme.vesc import VESCValues
 
 
-PUMP_PROFILE_XLSX = "_Cyclogram_Pump_test.xlsx"
+PUMP_PROFILE_XLSX = "_Cyclogram_Pump.xlsx"
+# PUMP_PROFILE_XLSX = "_Cyclogram_Pump_test.xlsx"
 CYCLOGRAM_DIRNAME = "file_cyclogram"
 
 
@@ -356,15 +357,18 @@ class WebControllerRuntime:
             if not self.psu.is_connected:
                 self._emit_error("Valve: PSU not connected")
                 return
+
             self._fsm = None
             self._valve_macro_active = True
             self._valve_macro_t0 = time.monotonic()
+            self.stage = "manual"
             self._set_psu_target(self._valve_boost_v, self._valve_boost_i, True)
             self._emit_connected()
 
     def cmd_valve_off(self) -> None:
         with self._lock:
             self._valve_macro_active = False
+            self.stage = "manual"
             self._set_psu_target(0.0, 0.0, False)
             self._emit_connected()
 
@@ -475,47 +479,66 @@ class WebControllerRuntime:
     def cmd_set_pump_rpm(self, rpm: float) -> None:
         with self._lock:
             self._stop_pump_profile_internal(notify=False)
+
             if self._fsm is not None and self._fsm.state == "Running":
                 self.pump_target = {"mode": "rpm", "value": float(rpm)}
                 return
+
             self._fsm = None
+            self.stage = "manual"
             self.pump_target = {"mode": "rpm", "value": float(rpm)}
+            self._emit_connected()
 
     def cmd_set_pump_duty(self, duty: float) -> None:
         with self._lock:
             self._stop_pump_profile_internal(notify=False)
+
             if self._fsm is not None and self._fsm.state == "Running":
                 self.pump_target = {"mode": "duty", "value": _clamp01(duty)}
                 return
+
             self._fsm = None
+            self.stage = "manual"
             self.pump_target = {"mode": "duty", "value": _clamp01(duty)}
+            self._emit_connected()
 
     def cmd_set_starter_duty(self, duty: float) -> None:
         with self._lock:
             self._stop_pump_profile_internal(notify=False)
             self._fsm = None
+            self.stage = "manual"
             self.starter_target = {"mode": "duty", "value": _clamp01(duty)}
+            self._emit_connected()
 
     def cmd_set_starter_rpm(self, rpm: float) -> None:
         with self._lock:
             self._stop_pump_profile_internal(notify=False)
             self._fsm = None
+            self.stage = "manual"
             self.starter_target = {"mode": "rpm", "value": float(rpm)}
+            self._emit_connected()
 
     def cmd_psu_set_vi(self, v: float, i: float) -> None:
         with self._lock:
             self._stop_pump_profile_internal(notify=False)
             self._fsm = None
             self._valve_macro_active = False
+            self.stage = "manual"
             self._set_psu_target(float(v), float(i), bool(self.psu_target.get("out", False)))
+            self._emit_connected()
 
     def cmd_psu_output(self, on: bool) -> None:
         with self._lock:
             self._stop_pump_profile_internal(notify=False)
             self._fsm = None
             self._valve_macro_active = False
-            self._set_psu_target(float(self.psu_target.get("v", 0.0)), float(self.psu_target.get("i", 0.0)), bool(on))
-
+            self.stage = "manual"
+            self._set_psu_target(
+                float(self.psu_target.get("v", 0.0)),
+                float(self.psu_target.get("i", 0.0)),
+                bool(on),
+            )
+            self._emit_connected()
     # -------- internals
     def _disconnect_pump(self) -> None:
         try:
