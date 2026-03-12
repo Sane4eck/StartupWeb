@@ -3,6 +3,7 @@ from __future__ import annotations
 import threading
 import time
 from pathlib import Path
+from web_app import app
 
 import uvicorn
 import webview
@@ -37,7 +38,7 @@ api = JsApi()
 
 
 def _run_server() -> None:
-    uvicorn.run("web_app:app", host=HOST, port=PORT, reload=False, log_level="warning")
+    uvicorn.run(app, host=HOST, port=PORT, reload=False, log_level="warning")
 
 
 if __name__ == "__main__":
