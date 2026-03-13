@@ -18,7 +18,7 @@ class StartupConfig:
         (4000.0, 0.15),
         (5000.0, 0.16),
     ])
-    starter_step_hold_s: float = 0.5
+    starter_step_hold_s: float = 0.2
 
     # --- Starter -> FuelRamp (by starter RPM)
     to_fuelramp_starter_rpm: float = 1000.0
@@ -33,7 +33,7 @@ class StartupConfig:
 
     # --- FuelRamp -> Running (by starter RPM) + freeze pump
     fuelramp_timeout_s: float = 300.0
-    to_running_starter_rpm: float = 7000.0
+    to_running_starter_rpm: float = 5000.0
     to_running_hold_s: float = 0.2
 
     # --- Valve behavior in FuelRamp (until valve_close_rpm reached)
