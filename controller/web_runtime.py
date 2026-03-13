@@ -70,7 +70,7 @@ def _cmd_snapshot(target: Dict[str, Any], pole_pairs: int) -> Dict[str, Any]:
 
 
 class WebControllerRuntime:
-    def __init__(self, dt: float = 0.05, publish: Optional[Callable[[str, Any], None]] = None):
+    def __init__(self, dt: float = 1/10, publish: Optional[Callable[[str, Any], None]] = None):
         self.dt = float(dt)
         self._external_publish = publish or (lambda _event, _payload: None)
         self._lock = threading.RLock()
@@ -119,6 +119,9 @@ class WebControllerRuntime:
         self._log_dt = 1.0 / self.log_hz
         self._next_ui_emit = 0.0
         self._next_log_write = 0.0
+
+        self.hz_psu_read = 2
+        self.hz_psu_cmd = 2
 
         self._fsm: Optional[CycleFSM] = None
         self._fsm_prev_state: Optional[str] = None
@@ -638,7 +641,7 @@ class WebControllerRuntime:
                     self._emit_error(f"PSU read error: {e}")
                     self._disconnect_psu()
                     self._emit_connected()
-                self._psu_next_read = now + 0.5
+                self._psu_next_read = now + 1/self.hz_psu_read #0.1
 
             if self._fsm is None and self._pump_prof_active and self._pump_prof is not None:
                 elapsed = now - self._pump_prof_t0
@@ -691,7 +694,7 @@ class WebControllerRuntime:
                         self.psu.output(out)
                         self._psu_applied["out"] = out
                     self._psu_dirty = False
-                    self._psu_next_cmd = now + 0.2
+                    self._psu_next_cmd = now + self.hz_psu_cmd #0.1
                 except Exception as e:
                     self._emit_error(f"PSU cmd error: {e}")
                     self._disconnect_psu()
